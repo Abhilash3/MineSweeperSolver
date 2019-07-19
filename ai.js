@@ -1,99 +1,109 @@
 class AI {
   constructor(grid) {
-		this.grid = grid;
-		
-		this.cols = grid.cols;
-		this.rows = grid.rows;
-		
-		this.tryCorner();
-	}
-	
-	tryCorner() {
-	  const corners = [
-			[0, 0], [0, this.cols - 1], [this.rows - 1, 0], [this.rows - 1, this.cols - 1]
-		]
-			.map(([x, y]) => this.grid.cell(x, y))
-			.filter(a => !a.revealed && !a.flagged);
+        this.grid = grid;
 
-		if (!corners.length) return false;
-		
-		this.grid.trigger(corners[floor(random(corners.length))]);
-		return true;
-	}
-	
-	tryGuessing() {
-		const cells = this.grid.cellsHidden().filter(a => !a.flagged);
-		if (!cells.length) return;
+        this.cols = grid.cols;
+        this.rows = grid.rows;
+    }
 
-		this.grid.trigger(cells[floor(random(cells.length))]);
-		return true;
-	}
-	
-	tryFlagging() {
-		this.grid.iterateGrid(cell => {
-			const bombCounter = this.grid.bombCounter(cell);
-			if (bombCounter === 0) return;
+    tryCorner() {
+      const corners = [
+            [0, 0], [0, this.cols - 1], [this.rows - 1, 0], [this.rows - 1, this.cols - 1]
+        ]
+            .map(([x, y]) => this.grid.cell(x, y))
+            .filter(a => !a.revealed && !a.flagged);
 
-			const hiddenCells = cell.hiddenNeighbours(this.grid);
+        if (!corners.length) return false;
 
-			if (hiddenCells.length === bombCounter) {
-				hiddenCells.forEach(a => a.flagged = true);
-			}
-		});
-		
-		let useful = false;
-		this.grid.iterateGrid(cell => {
-			const bombCounter = this.grid.bombCounter(cell);
-			if (useful || bombCounter === 0) return;
+        this.grid.trigger(corners[floor(random(corners.length))]);
+        return true;
+    }
 
-			const hiddenCells = cell.hiddenNeighbours(this.grid);
-			const flaggedCells = hiddenCells.filter(a => a.flagged);
+    tryEdge() {
+        const cells = this.grid.cellsHidden()
+            .filter(a => a.i === 0 || a.j === 0 || a.i === this.rows - 1 || a.j === this.cols - 1)
+            .filter(a => !a.flagged);
+        if (!cells.length) return false;
 
-			if (hiddenCells.length - flaggedCells.length > 0 && flaggedCells.length === bombCounter) {
-				useful = true;
-				this.grid.trigger(hiddenCells.filter(a => !a.flagged)[0]);
-			}
-		});
-		
-		return useful;
-	}
-	
-	tryOverlapping() {
-		const cells = this.grid.cellsNearBombs();
-		if (cells.length <= 1) return false;
-		
-		const bombCounter = (cell, neighbours) => this.grid.bombCounter(cell) - neighbours.filter(a => a.flagged).length;
-		
-		return cells.some(a => {
-			const aNeighbours = a.hiddenNeighbours(this.grid);
-			const aTargets = aNeighbours.filter(cell => !cell.flagged);
-			if (aTargets.length === 0) return false;
-			
-			const aTargetSet = new Set(aTargets.map(cell => `${cell.i} - ${cell.j}`));
-			
-			return cells.filter(b => b.isNeighbour(a)).some(b => {
-				const bNeighbours = b.hiddenNeighbours(this.grid);
-				const bTargets = bNeighbours.filter(cell => !cell.flagged);
-				if (bTargets.length === 0) return false;
-				
-				let useful = false;
-				
-				const bTargetSet = new Set(bTargets.map(cell => `${cell.i} - ${cell.j}`));
-				const targets = aTargets.filter(cell => !bTargetSet.has(`${cell.i} - ${cell.j}`));
-				
-				const isSubset = bTargets.every(cell => aTargetSet.has(`${cell.i} - ${cell.j}`));
-				const isSafe = bombCounter(a, aNeighbours) === bombCounter(b, bNeighbours);
-				
-				if (targets.length > 0 && isSubset && isSafe) {
-					useful = true;
-					this.grid.trigger(targets[0]);
-				}
-				return useful;
-			});
-		});
-	}
-	
-	nextMove() {
-		return this.tryFlagging() || this.tryOverlapping() || this.tryCorner() || this.tryGuessing();
-	}
+        this.grid.trigger(cells[floor(random(cells.length))]);
+        return true;
+    }
+
+    tryGuessing() {
+        const cells = this.grid.cellsHidden().filter(a => !a.flagged);
+        if (!cells.length) return;
+
+        this.grid.trigger(cells[floor(random(cells.length))]);
+        return true;
+    }
+
+    checkCellRanges() {
+        this.grid.iterateGrid(cell => {
+            const bombCounter = cell.bombCounter();
+            if (bombCounter === 0) return;
+
+            const hiddenCells = cell.hiddenNeighbours(this.grid);
+
+            if (hiddenCells.length === bombCounter) {
+                hiddenCells.forEach(a => a.flagged = true);
+            }
+        });
+
+        let useful = false;
+        this.grid.iterateGrid(cell => {
+            const bombCounter = cell.bombCounter();
+            if (bombCounter === 0) return;
+
+            const hiddenCells = cell.hiddenNeighbours(this.grid);
+            const flaggedCells = hiddenCells.filter(a => a.flagged);
+            const safeCells = hiddenCells.filter(a => !a.flagged);
+
+            if (safeCells.length > 0 && flaggedCells.length === bombCounter) {
+                useful = true;
+                safeCells.forEach(cell => this.grid.trigger(cell));
+            }
+        });
+
+        return useful;
+    }
+
+    checkOverlappingRanges() {
+        const cells = this.grid.cellsNearBombs();
+        if (cells.length <= 1) return false;
+
+        const bombCounter = (cell, neighbours) => cell.bombCounter() - neighbours.filter(a => a.flagged).length;
+        const areAdjacent = (a, b) => !(a.i === b.i && a.j === b.j) && abs(a.i - b.i) < 2 && abs(a.j - b.j) < 2;
+
+        let useful = false;
+        cells.forEach(a => {
+            const aNeighbours = a.hiddenNeighbours(this.grid);
+            const aTargets = aNeighbours.filter(cell => !cell.flagged);
+            if (aTargets.length === 0) return;
+
+            const aTargetSet = new Set(aTargets.map(cell => `${cell.i} - ${cell.j}`));
+
+            cells.filter(b => areAdjacent(a, b)).forEach(b => {
+                const bNeighbours = b.hiddenNeighbours(this.grid);
+                const bTargets = bNeighbours.filter(cell => !cell.flagged);
+                if (bTargets.length === 0) return;
+
+                const bTargetSet = new Set(bTargets.map(cell => `${cell.i} - ${cell.j}`));
+                const targets = aTargets.filter(cell => !bTargetSet.has(`${cell.i} - ${cell.j}`));
+
+                const isSubset = bTargets.every(cell => aTargetSet.has(`${cell.i} - ${cell.j}`));
+                const isSafe = bombCounter(a, aNeighbours) === bombCounter(b, bNeighbours);
+
+                if (targets.length > 0 && isSubset && isSafe) {
+                    useful = true;
+                    targets.forEach(cell => this.grid.trigger(cell));
+                }
+            });
+        });
+
+        return useful;
+    }
+
+    nextMove() {
+        return this.checkCellRanges() || this.checkOverlappingRanges() || this.tryCorner() || this.tryEdge() || this.tryGuessing();
+    }
 }

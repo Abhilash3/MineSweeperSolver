@@ -1,198 +1,193 @@
 const Grid = (function() {
-	const NEIGHBOURS = [[-1, -1], [-1, 0], [-1, 1], [0, -1], [0, 1], [1, -1], [1, 0], [1, 1]];
+    const NEIGHBOURS = [[-1, -1], [-1, 0], [-1, 1], [0, -1], [0, 1], [1, -1], [1, 0], [1, 1]];
 
-	const cellInfo = new WeakMap();
-	
-	function hasBomb(cell) {
-		return cellInfo.get(cell).bomb;
-	}
-	
-	function bombCounter(cell) {
-		return cellInfo.get(cell).bombCounter;
-	}
-	
-	function setBombCounter(cell, count) {
-		const info = cellInfo.get(cell);
+    const cellInfo = new WeakMap();
 
-		info.bombCounter = count;
-		cellInfo.set(cell, info);
-	}
-	
-	function floodFill(cell, grid) {
-		return NEIGHBOURS
-			.map(([x, y]) => [cell.i + x, cell.j + y])
-			.filter(([x, y]) => grid.isValid(x, y) && !grid.cell(x, y).revealed)
-			.forEach(([x, y]) => reveal(grid.cell(x, y), grid));
-	}
+    function hasBomb(cell) {
+        return cellInfo.get(cell).bomb;
+    }
 
-	function reveal(cell, grid) {
-		cell.revealed = true;
-		if (bombCounter(cell) === 0) {
-			floodFill(cell, grid);
-		}
-	}
-	
-	function enableBomb(cell) {
-		const info = cellInfo.get(cell);
-		if (info.bomb) return false;
+    function bombCounter(cell) {
+        return cellInfo.get(cell).bombCounter;
+    }
 
-		info.bomb = true;
-		cellInfo.set(this, info);
-		return true;
-	}
-	
-	function trigger(cell, grid) {
-		if (hasBomb(cell)) {
-			cell.triggered = true;
-			return false;
-		} else {
-			reveal(cell, grid);
-			return true;
-		}
-	}
-	
-	function showBombs(grid) {
-	  grid.iterateGrid(cell => {
-			if (hasBomb(cell)) cell.revealed = true;
-		});
-	}
+    function setBombCounter(cell, count) {
+        const info = cellInfo.get(cell);
 
-	class Cell {
-		constructor (i, j, w) {
-			this.i = i;
-			this.j = j;
-			this.x = i * w;
-			this.y = j * w;
-			this.w = w;
+        info.bombCounter = count;
+        cellInfo.set(cell, info);
+    }
 
-			this.flagged = false;
-			this.revealed = false;
-			this.triggered = false;
+    function countBombs(grid) {
+        grid.iterateGrid(cell => {
+            if (hasBomb(cell)) {
+                setBombCounter(cell, -1);
+            } else {
+                const count = NEIGHBOURS
+                    .map(([x, y]) => [cell.i + x, cell.j + y])
+                    .filter(([x, y]) => grid.isValid(x, y) && hasBomb(grid.cell(x, y)))
+                    .length;
 
-			cellInfo.set(this, {bombCounter: 0, bomb: false});
-		}
+                setBombCounter(cell, count);
+            }
+        });
+    }
 
-		show() {
-			stroke(0);
-			noFill();
-			rect(this.x, this.y, this.w, this.w);
-			if (this.revealed) {
-				if (hasBomb(this) && !this.triggered) {
-					fill(127);
-					ellipse(this.x + this.w * 0.5, this.y + this.w * 0.5, this.w * 0.5);
-				} else if (this.triggered) {
-					fill(255, 0, 0);
-					ellipse(this.x + this.w * 0.5, this.y + this.w * 0.5, this.w * 0.5);
-				} else {
-					fill(200);
-					rect(this.x, this.y, this.w, this.w);
-					if (bombCounter(this) > 0) {
-						textAlign(CENTER);
-						fill(0);
-						text(bombCounter(this), this.x + this.w * 0.5, this.y + this.w - 6);
-					}
-				}
-			} else if (this.flagged) {
-				fill(255, 255, 0);
-				rect(this.x, this.y, this.w, this.w);
+    function floodFill(cell, grid) {
+        return NEIGHBOURS
+            .map(([x, y]) => [cell.i + x, cell.j + y])
+            .filter(([x, y]) => grid.isValid(x, y) && !grid.cell(x, y).revealed)
+            .forEach(([x, y]) => reveal(grid.cell(x, y), grid));
+    }
 
-				fill(0);
-				textAlign(CENTER);
-				text('F', this.x + this.w * 0.5, this.y + this.w - 6);
-			}
-		}
+    function reveal(cell, grid) {
+        cell.revealed = true;
+        if (bombCounter(cell) === 0) {
+            floodFill(cell, grid);
+        }
+    }
+    
+    function enableBomb(cell) {
+        const info = cellInfo.get(cell);
+        if (info.bomb) return false;
 
-		countBombs(grid) {
-			if (hasBomb(this)) {
-				setBombCounter(this, -1);
-			} else {
-				const count = NEIGHBOURS
-					.map(([x, y]) => [this.i + x, this.j + y])
-					.filter(([x, y]) => grid.isValid(x, y) && hasBomb(grid.cell(x, y)))
-					.length;
-				
-				setBombCounter(this, count);
-			}
-		}
+        info.bomb = true;
+        cellInfo.set(this, info);
+        return true;
+    }
 
-		hiddenNeighbours(grid) {
-			return NEIGHBOURS
-					.map(([x, y]) => [this.i + x, this.j + y])
-					.filter(([x, y]) => grid.isValid(x, y) && !grid.cell(x, y).revealed)
-					.map(([x, y]) => grid.cell(x, y));
-		}
-		
-		isNeighbour(cell) {
-		  return !(this.i === cell.i && this.j === cell.j) && abs(this.i - cell.i) <= 1 && abs(this.j - cell.j) <= 1;
-		}
+    function trigger(cell, grid) {
+        if (hasBomb(cell)) {
+            cell.triggered = true;
+            return false;
+        } else {
+            reveal(cell, grid);
+            return true;
+        }
+    }
 
-		contains(x, y) {
-			return x > this.x && x < this.x + this.w && y > this.y && y < this.y + this.w;
-		}
-	}
+    function showBombs(grid) {
+      grid.iterateGrid(cell => {
+            if (hasBomb(cell)) cell.revealed = true;
+        });
+    }
 
-	class Grid {
-		constructor(cols, rows, w) {
-			this.cols = cols;
-			this.rows = rows;
-			this.totalBombs = 80;
+    class Cell {
+        constructor (i, j, w) {
+            this.i = i;
+            this.j = j;
+            this.x = i * w;
+            this.y = j * w;
+            this.w = w;
 
-			this.grid = new Array(cols).fill(0).map((a, i) => new Array(rows).fill(0).map((b, j) => new Cell(j, i, w)));
+            this.flagged = false;
+            this.revealed = false;
+            this.triggered = false;
 
-			let bombs = 0;
-			while (bombs < this.totalBombs) {
-				const index = floor(random(cols * rows));
-				const cell = this.grid[floor(index / cols)][floor(index % cols)];
+            cellInfo.set(this, {bombCounter: 0, bomb: false});
+        }
 
-				bombs += Number(enableBomb(cell));
-			}
-			
-			this.gameover = false;
-		}
-		
-		bombCounter(cell) {
-			return cell.revealed ? bombCounter(cell) : 0;
-		}
+        show() {
+            stroke(0);
+            noFill();
+            rect(this.x, this.y, this.w, this.w);
+            if (this.revealed) {
+                if (hasBomb(this) && !this.triggered) {
+                    fill(127);
+                    ellipse(this.x + this.w * 0.5, this.y + this.w * 0.5, this.w * 0.5);
+                } else if (this.triggered) {
+                    fill(255, 0, 0);
+                    ellipse(this.x + this.w * 0.5, this.y + this.w * 0.5, this.w * 0.5);
+                } else {
+                    fill(200);
+                    rect(this.x, this.y, this.w, this.w);
+                    if (bombCounter(this) > 0) {
+                        textAlign(CENTER);
+                        fill(0);
+                        text(bombCounter(this), this.x + this.w * 0.5, this.y + this.w - 6);
+                    }
+                }
+            } else if (this.flagged) {
+                fill(255, 255, 0);
+                rect(this.x, this.y, this.w, this.w);
 
-		identifyCell(x, y) {
-			return this.grid.reduce((acc, a) => [...acc, ...a], []).find(cell => cell.contains(x, y));
-		}
+                fill(0);
+                textAlign(CENTER);
+                text('F', this.x + this.w * 0.5, this.y + this.w - 6);
+            }
+        }
 
-		trigger(cell) {
-			if (!cell || this.gameover) return;
+        bombCounter() {
+            return this.revealed ? bombCounter(this) : 0;
+        }
 
-			this.gameover = !trigger(cell, this) || this.cellsHidden().length === this.totalBombs;
-			if (this.gameover) showBombs(this);
-		}
+        hiddenNeighbours(grid) {
+            return NEIGHBOURS
+                    .map(([x, y]) => [this.i + x, this.j + y])
+                    .filter(([x, y]) => grid.isValid(x, y) && !grid.cell(x, y).revealed)
+                    .map(([x, y]) => grid.cell(x, y));
+        }
 
-		cellsHidden() {
-			return this.grid.reduce((acc, a) => [...acc, ...a], []).filter(a => !a.revealed);
-		}
-		
-		cellsNearBombs() {
-		  return this.grid.reduce((acc, a) => [...acc, ...a], []).filter(a => a.revealed && bombCounter(a) > 0);
-		}
+        contains(x, y) {
+            return x > this.x && x < this.x + this.w && y > this.y && y < this.y + this.w;
+        }
+    }
 
-		isValid(x, y) {
-			return x >= 0 && x < this.rows && y >= 0 && y < this.cols;
-		}
+    class Grid {
+        constructor(cols, rows, w, t) {
+            this.cols = cols;
+            this.rows = rows;
+            this.totalBombs = t;
 
-		cell(x, y) {
-			return this.grid[y] && this.grid[y][x];
-		}
+            this.grid = new Array(cols).fill(0).map((a, i) => new Array(rows).fill(0).map((b, j) => new Cell(j, i, w)));
 
-		countBombs() {
-			this.iterateGrid(cell => cell.countBombs(this));
-		}
+            let bombs = 0;
+            while (bombs < this.totalBombs) {
+                const index = floor(random(cols * rows));
+                const cell = this.grid[floor(index / cols)][floor(index % cols)];
 
-		show() {
-			this.iterateGrid(cell => cell.show());
-		}
+                bombs += Number(enableBomb(cell));
+            }
+            this.gameover = false;
+            
+            countBombs(this);
+        }
 
-		iterateGrid(consumer) {
-			this.grid.forEach(row => row.forEach(consumer));
-		}
-	}
-	
-	return Grid;
+        identifyCell(x, y) {
+            return this.grid.reduce((acc, a) => [...acc, ...a], []).find(cell => cell.contains(x, y));
+        }
+
+        trigger(cell) {
+            if (!cell || this.gameover) return;
+
+            this.gameover = !trigger(cell, this) || this.cellsHidden().length === this.totalBombs;
+            if (this.gameover) showBombs(this);
+        }
+
+        cellsHidden() {
+            return this.grid.reduce((acc, a) => [...acc, ...a], []).filter(a => !a.revealed);
+        }
+
+        cellsNearBombs() {
+          return this.grid.reduce((acc, a) => [...acc, ...a], []).filter(a => a.revealed && bombCounter(a) > 0);
+        }
+
+        isValid(x, y) {
+            return x >= 0 && x < this.rows && y >= 0 && y < this.cols;
+        }
+
+        cell(x, y) {
+            return this.grid[y] && this.grid[y][x];
+        }
+
+        show() {
+            this.iterateGrid(cell => cell.show());
+        }
+
+        iterateGrid(consumer) {
+            this.grid.forEach(row => row.forEach(consumer));
+        }
+    }
+
+    return Grid;
 })();
