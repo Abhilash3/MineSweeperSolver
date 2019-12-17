@@ -3,23 +3,14 @@ const Grid = (function() {
 
     const cellInfo = new WeakMap();
 
-    function hasBomb(cell) {
-        return cellInfo.get(cell).bomb;
-    }
+    const hasBomb = (cell) => cellInfo.get(cell).bomb;
 
-    function bombCounter(cell) {
-        return cellInfo.get(cell).bombCounter;
-    }
+    const bombCounter = (cell) => cellInfo.get(cell).bombCounter;
 
-    function setBombCounter(cell, count) {
-        const info = cellInfo.get(cell);
-
-        info.bombCounter = count;
-        cellInfo.set(cell, info);
-    }
+    const setBombCounter = (cell, count) => cellInfo.get(cell).bombCounter = count;
 
     function countBombs(grid) {
-        grid.iterateGrid(cell => {
+        grid.iterate(cell => {
             if (hasBomb(cell)) {
                 setBombCounter(cell, -1);
             } else {
@@ -46,14 +37,12 @@ const Grid = (function() {
             floodFill(cell, grid);
         }
     }
-    
+
     function enableBomb(cell) {
         const info = cellInfo.get(cell);
         if (info.bomb) return false;
 
-        info.bomb = true;
-        cellInfo.set(this, info);
-        return true;
+        return info.bomb = true;
     }
 
     function trigger(cell, grid) {
@@ -67,9 +56,7 @@ const Grid = (function() {
     }
 
     function showBombs(grid) {
-      grid.iterateGrid(cell => {
-            if (hasBomb(cell)) cell.revealed = true;
-        });
+        grid.iterate(cell => cell.revealed = true, hasBomb);
     }
 
     class Cell {
@@ -149,7 +136,7 @@ const Grid = (function() {
                 bombs += Number(enableBomb(cell));
             }
             this.gameover = false;
-            
+
             countBombs(this);
         }
 
@@ -168,10 +155,6 @@ const Grid = (function() {
             return this.grid.reduce((acc, a) => [...acc, ...a], []).filter(a => !a.revealed);
         }
 
-        cellsNearBombs() {
-          return this.grid.reduce((acc, a) => [...acc, ...a], []).filter(a => a.revealed && bombCounter(a) > 0);
-        }
-
         isValid(x, y) {
             return x >= 0 && x < this.rows && y >= 0 && y < this.cols;
         }
@@ -181,11 +164,11 @@ const Grid = (function() {
         }
 
         show() {
-            this.iterateGrid(cell => cell.show());
+            this.iterate(cell => cell.show());
         }
 
-        iterateGrid(consumer) {
-            this.grid.forEach(row => row.forEach(consumer));
+        iterate(consumer, cellFilter = a => a) {
+            this.grid.forEach(row => row.filter(cellFilter).forEach(consumer));
         }
     }
 

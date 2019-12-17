@@ -25,6 +25,6 @@ function draw() {
     if (!grid.gameover) {
         ai.nextMove();
     }
-    
+
     grid.show();
 }
